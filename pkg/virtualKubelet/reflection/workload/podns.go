@@ -54,6 +54,9 @@ import (
 var _ manager.NamespacedReflector = (*NamespacedPodReflector)(nil)
 var _ NamespacedPodHandler = (*NamespacedPodReflector)(nil)
 
+const rootIPLabel = "brokering.liqo.io/root-ip"
+const rootClusterIDLabel = "brokering.liqo.io/root-cid"
+
 // NamespacedPodHandler exposes an interface to interact with pods offloaded to the remote cluster in a given namespace.
 type NamespacedPodHandler interface {
 	// Exec executes a command in a container of a reflected pod.
@@ -259,7 +262,11 @@ func (npr *NamespacedPodReflector) HandleStatus(ctx context.Context, local, remo
 	// Wrap the address translation logic, so that we do not have to handle errors in the forge logic.
 	var terr error
 	translator := func(original string) (translation string) {
-		translation, terr = npr.MapPodIP(ctx, info, original)
+		clusterID := forge.RemoteClusterID
+		if rootCID, ok := local.Labels[rootClusterIDLabel]; ok {
+			clusterID = rootCID
+		}
+		translation, terr = npr.MapPodIP(ctx, info, original, clusterID)
 		return translation
 	}
 
@@ -271,6 +278,21 @@ func (npr *NamespacedPodReflector) HandleStatus(ctx context.Context, local, remo
 			info.Restarts = npr.InferAdditionalRestarts(&local.Status, &remote.Status)
 		}
 		info.RemoteUID = remote.GetUID()
+	}
+
+	// We are a broker for this pod, if it is a shadow pod and the remote one isn't
+	vkIsBroker := (local.Labels["liqo.io/shadowPod"] != "") && (remote.Labels["liqo.io/shadowPod"] == "")
+	// Annotate the pod with the "root" IP: if we are the broker, use the remote IP, otherwise propagate the label
+	if vkIsBroker {
+		local.Labels[rootIPLabel] = remote.Status.PodIP
+	} else {
+		local.Labels[rootIPLabel] = remote.Labels[rootIPLabel]
+	}
+	// Annotate the pod with the "root" cluster ID: if we are the broker, use the remote CID, otherwise propagate the label
+	if vkIsBroker {
+		local.Labels[rootClusterIDLabel] = forge.RemoteClusterID
+	} else {
+		local.Labels[rootClusterIDLabel] = remote.Labels[rootClusterIDLabel]
 	}
 
 	// Forge the local pod object to update its status.
@@ -421,7 +443,7 @@ func (npr *NamespacedPodReflector) ForgetPodInfo(po string) {
 }
 
 // MapPodIP maps the remote Pod address to the corresponding local one.
-func (npr *NamespacedPodReflector) MapPodIP(ctx context.Context, info *PodInfo, original string) (string, error) {
+func (npr *NamespacedPodReflector) MapPodIP(ctx context.Context, info *PodInfo, original, clusterID string) (string, error) {
 	// Check the pod information whether a translation already exists for the given IP.
 	// Let check if the original IP is the expected one, to avoid issues in case the remote IP changed.
 	if info.OriginalIP == original {
@@ -429,7 +451,7 @@ func (npr *NamespacedPodReflector) MapPodIP(ctx context.Context, info *PodInfo, 
 	}
 
 	// Cache miss -> we need to interact with the IPAM to request the translation.
-	response, err := npr.ipamclient.GetHomePodIP(ctx, &ipam.GetHomePodIPRequest{ClusterID: forge.RemoteClusterID, Ip: original})
+	response, err := npr.ipamclient.GetHomePodIP(ctx, &ipam.GetHomePodIPRequest{ClusterID: clusterID, Ip: original})
 	if err != nil {
 		return "", fmt.Errorf("failed to translate pod IP %v: %w", original, err)
 	}
