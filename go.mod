@@ -18,7 +18,7 @@ require (
 	github.com/jinzhu/copier v0.0.0-20201025035756-632e723a6687
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/metal-stack/go-ipam v1.8.4-0.20210322080203-5a9da5064b27
-	github.com/miekg/dns v1.1.41
+	github.com/miekg/dns v1.1.49
 	github.com/mittwald/go-helm-client v0.8.3-0.20211026133933-a26889186afc
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.0
@@ -211,6 +211,8 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
+	golang.org/x/tools v0.1.6-0.20210820212750-d4cc65f0b2ff // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	golang.zx2c4.com/wireguard v0.0.20200121 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368 // indirect
